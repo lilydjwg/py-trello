@@ -1,13 +1,12 @@
 from httplib2 import Http
-from urllib import urlencode
+from urllib.parse import urlencode
 from datetime import datetime
-import exceptions
 import json
 import oauth2 as oauth
 import os
 import random
 import time
-import urlparse
+import urllib.parse
 
 class ResourceUnavailable(Exception):
 	"""Exception representing a failed request to a resource"""
@@ -94,7 +93,7 @@ class TrelloClient(object):
 		"""
 		Returns all boards for your Trello user
 
-		:return: a list of Python objects representing the Trello boards. Each board has the 
+		:return: a list of Python objects representing the Trello boards. Each board has the
 		following noteworthy attributes:
 			- id: the board's identifier
 			- name: Name of the board
@@ -108,21 +107,21 @@ class TrelloClient(object):
 			boards.append(self._board_from_json(obj))
 
 		return boards
-	
+
 	def get_board(self, board_id):
 		obj = self.fetch_json('/boards/' + board_id)
 		return self._board_from_json(obj)
-		
+
 	def add_board(self, board_name):
 		obj = self.fetch_json('/boards', http_method = 'POST', post_args = {'name':board_name})
-		board = Board(self, obj['id'], name=obj['name'].encode('utf-8'))
+		board = Board(self, obj['id'], name=obj['name'])
 		board.closed = obj['closed']
-		return board 
+		return board
 
 
 	def get_list(self, list_id):
 		obj = self.fetch_json('/lists/' + list_id)
-		list = List(self.get_board(obj['idBoard']), obj['id'], name=obj['name'].encode('utf-8'))
+		list = List(self.get_board(obj['idBoard']), obj['id'], name=obj['name'])
 		list.closed = obj['closed']
 		return list
 
@@ -154,11 +153,11 @@ class TrelloClient(object):
 			raise Unauthorized(url, response)
 		if response.status != 200:
 			raise ResourceUnavailable(url, response)
-		return json.loads(content)
+		return json.loads(content.decode('utf-8'))
 
 	def _board_from_json(self, json):
-		board = Board(self, json['id'], name = json['name'].encode('utf-8'))
-		board.description = json.get('desc','').encode('utf-8')
+		board = Board(self, json['id'], name = json['name'])
+		board.description = json.get('desc','')
 		board.closed = json['closed']
 		board.url = json['url']
 		return board
@@ -185,7 +184,7 @@ class Board(object):
 	def fetch(self):
 		"""Fetch all attributes for this board"""
 		json_obj = self.client.fetch_json('/boards/'+self.id)
-		self.name = json_obj['name'].encode('utf-8')
+		self.name = json_obj['name']
 		self.description = json_obj.get('desc','')
 		self.closed = json_obj['closed']
 		self.url = json_obj['url']
@@ -220,7 +219,7 @@ class Board(object):
 				query_params = {'cards': 'none', 'filter': list_filter})
 		lists = list()
 		for obj in json_obj:
-			l = List(self, obj['id'], name=obj['name'].encode('utf-8'))
+			l = List(self, obj['id'], name=obj['name'])
 			l.closed = obj['closed']
 			lists.append(l)
 
@@ -236,9 +235,9 @@ class Board(object):
 			'/lists',
 			http_method = 'POST',
 			post_args = {'name': name, 'idBoard': self.id},)
-		list = List(self, obj['id'], name=obj['name'].encode('utf-8'))
+		list = List(self, obj['id'], name=obj['name'])
 		list.closed = obj['closed']
-		return list 
+		return list
 
 	def all_cards(self):
 		"""Returns all cards on this board"""
@@ -259,13 +258,13 @@ class Board(object):
 				query_params = {'filter': card_filter})
 		cards = list()
 		for obj in json_obj:
-			card = Card(self, obj['id'], name=obj['name'].encode('utf-8'))
+			card = Card(self, obj['id'], name=obj['name'])
 			card.closed = obj['closed']
 			card.member_ids = obj['idMembers']
 			cards.append(card)
 
 		return cards
-		
+
 	def fetch_actions(self, action_filter):
 		json_obj = self.client.fetch_json(
 			'/boards/' + self.id + '/actions',
@@ -273,7 +272,7 @@ class Board(object):
 		self.actions = json_obj
 
 class List(object):
-	"""Class representing a Trello list. List attributes are stored on the object, but access to 
+	"""Class representing a Trello list. List attributes are stored on the object, but access to
 	sub-objects (Cards) require an API call"""
 
 	def __init__(self, board, list_id, name=''):
@@ -293,7 +292,7 @@ class List(object):
 	def fetch(self):
 		"""Fetch all attributes for this list"""
 		json_obj = self.client.fetch_json('/lists/'+self.id)
-		self.name = json_obj['name'].encode('utf-8')
+		self.name = json_obj['name']
 		self.closed = json_obj['closed']
 
 	def list_cards(self):
@@ -301,8 +300,8 @@ class List(object):
 		json_obj = self.client.fetch_json('/lists/'+self.id+'/cards')
 		cards = list()
 		for c in json_obj:
-			card = Card(self, c['id'], name = c['name'].encode('utf-8'))
-			card.description = c.get('desc','').encode('utf-8')
+			card = Card(self, c['id'], name = c['name'])
+			card.description = c.get('desc','')
 			card.closed = c['closed']
 			card.url = c['url']
 			card.member_ids = c['idMembers']
@@ -326,10 +325,10 @@ class List(object):
 		card.url = json_obj['url']
 		card.member_ids = json_obj['idMembers']
 		return card
-		
+
 	def fetch_actions(self, action_filter):
 		"""
-		Fetch actions for this list can give more argv to action_filter, 
+		Fetch actions for this list can give more argv to action_filter,
 		split for ',' json_obj is list
 		"""
 		json_obj = self.client.fetch_json(
@@ -338,8 +337,8 @@ class List(object):
 		self.actions = json_obj
 
 class Card(object):
-	""" 
-	Class representing a Trello card. Card attributes are stored on 
+	"""
+	Class representing a Trello card. Card attributes are stored on
 	the object
 	"""
 
@@ -362,7 +361,7 @@ class Card(object):
 		json_obj = self.client.fetch_json(
 				'/cards/'+self.id,
 				query_params = {'badges': False})
-		self.name = json_obj['name'].encode('utf-8')
+		self.name = json_obj['name']
 		self.description = json_obj.get('desc','')
 		self.closed = json_obj['closed']
 		self.url = json_obj['url']
@@ -390,7 +389,7 @@ class Card(object):
 
 	def fetch_actions(self, action_filter='createCard'):
 		"""
-		Fetch actions for this card can give more argv to action_filter, 
+		Fetch actions for this card can give more argv to action_filter,
 		split for ',' json_obj is list
 		"""
 		json_obj = self.client.fetch_json(
@@ -413,7 +412,7 @@ class Card(object):
 
 		:title: due a datetime object
 		"""
-		
+
 		datestr = "{}Z".format(due.isoformat())
 		self._set_remote_attribute('due', datestr)
 		self.due = datestr
@@ -450,19 +449,19 @@ class Card(object):
 			post_args = args)
 
 	def add_checklist(self, title, items, itemstates=[]):
-		
+
 		"""Add a checklist to this card
 
 		:title: title of the checklist
 		:items: a list of the item names
-		:itemstates: a list of the state (True/False) of each item 
+		:itemstates: a list of the state (True/False) of each item
 		:return: the checklist
 		"""
 		json_obj = self.client.fetch_json(
 				'/cards/'+self.id+'/checklists',
 				http_method = 'POST',
 				post_args = {'name': title},)
-		
+
 		cl = Checklist(self.client, [], json_obj, trello_card=self.id)
 		for i, name in enumerate(items):
 			try:
@@ -470,7 +469,7 @@ class Card(object):
 			except IndexError:
 				checked = False
 			cl.add_checklist_item(name, checked)
-		
+
 		self.fetch()
 		return cl
 
@@ -481,7 +480,7 @@ class Card(object):
 			post_args = {'value': value,},)
 
 class Member(object):
-	""" 
+	"""
 	Class representing a Trello member.
 	"""
 
@@ -497,17 +496,17 @@ class Member(object):
 		json_obj = self.client.fetch_json(
 				'/members/'+self.id,
 				query_params = {'badges': False})
-		self.status = json_obj['status'].encode('utf-8')
+		self.status = json_obj['status']
 		self.id = json_obj.get('id','')
 		self.bio = json_obj.get('bio','')
 		self.url = json_obj.get('url','')
-		self.username = json_obj['username'].encode('utf-8')
-		self.full_name = json_obj['fullName'].encode('utf-8')
-		self.initials = json_obj['initials'].encode('utf-8')
+		self.username = json_obj['username']
+		self.full_name = json_obj['fullName']
+		self.initials = json_obj['initials']
 		return self
 
 class Checklist(object):
-	""" 
+	"""
 	Class representing a Trello checklist.
 	"""
 
@@ -537,8 +536,8 @@ class Checklist(object):
 		json_obj['checked'] = checked
 		self.items.append(json_obj)
 		return json_obj
-		
-	def set_checklist_item(self, name, checked):		
+
+	def set_checklist_item(self, name, checked):
 		"""Set the state of an item on this checklist
 
 		:name: name of the checklist item
@@ -550,18 +549,18 @@ class Checklist(object):
 			[ix] = [i for i in range(len(self.items)) if self.items[i]['name'] == name]
 		except ValueError:
 			return
-		 
+
 		json_obj = self.client.fetch_json(
 				'/cards/'+self.trello_card+\
 				'/checklist/'+self.id+\
 				'/checkItem/'+self.items[ix]['id'],
 				http_method = 'PUT',
 				post_args = {'state': 'complete' if checked else 'incomplete'})
-		
+
 		json_obj['checked'] = checked
-		self.items[ix] = json_obj 
+		self.items[ix] = json_obj
 		return json_obj
-	
+
 	def __repr__(self):
 		return '<Checklist %s>' % self.id
 
